@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
-
+    
 
 class DiffusionModule(nn.Module):
     def __init__(self, network, var_scheduler, **kwargs):
@@ -14,12 +14,21 @@ class DiffusionModule(nn.Module):
         self.var_scheduler = var_scheduler
 
     def get_loss(self, x0, class_label=None, noise=None):
-        ######## TODO ########
+        ######## TODO ######## written
         # DO NOT change the code outside this part.
         # compute noise matching loss.
         B = x0.shape[0]
-        timestep = self.var_scheduler.uniform_sample_t(B, self.device)        
-        loss = x0.mean()
+        timestep = self.var_scheduler.uniform_sample_t(B, self.device)
+        
+        if noise is None:
+            noise = torch.randn_like(x0)
+            # assume noise \sim \mathcal{N}(0, I)
+
+        # import ipdb; ipdb.set_trace()
+        x_t, _noise = self.var_scheduler.add_noise(x0, timestep, noise)
+        eps_theta = self.network(x_t, timestep)
+        # network는 eps predictor
+        loss = (eps_theta - noise).pow(2).mean()
         ######################
         return loss
     
@@ -37,16 +46,16 @@ class DiffusionModule(nn.Module):
         batch_size,
         return_traj=False,
         class_label: Optional[torch.Tensor] = None,
-        guidance_scale: Optional[float] = 0.0,
+        guidance_scale: Optional[float] = 1.0,
     ):
         x_T = torch.randn([batch_size, 3, self.image_resolution, self.image_resolution]).to(self.device)
 
-        do_classifier_free_guidance = guidance_scale > 0.0
+        do_classifier_free_guidance = guidance_scale > 1.0
 
         if do_classifier_free_guidance:
 
             ######## TODO ########
-            # Assignment 2-3. Implement the classifier-free guidance.
+            # Assignment 2. Implement the classifier-free guidance.
             # Specifically, given a tensor of shape (batch_size,) containing class labels,
             # create a tensor of shape (2*batch_size,) where the first half is filled with zeros (i.e., null condition).
             assert class_label is not None
@@ -63,11 +72,7 @@ class DiffusionModule(nn.Module):
                 raise NotImplementedError("TODO")
                 #######################
             else:
-                noise_pred = self.network(
-                    x_t,
-                    timestep=t.to(self.device),
-                    class_label=class_label,
-                )
+                noise_pred = self.network(x_t, timestep=t.to(self.device))
 
             x_t_prev = self.var_scheduler.step(x_t, t, noise_pred)
 

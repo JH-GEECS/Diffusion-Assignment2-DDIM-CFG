@@ -87,7 +87,7 @@ class DiffusionModule(nn.Module):
         # DO NOT change the code outside this part.
         # Compute xt.
         alphas_prod_t = extract(self.var_scheduler.alphas_cumprod, t, x0)
-        xt = x0
+        xt = torch.sqrt(alphas_prod_t) * x0 + (1-alphas_prod_t).sqrt() * noise
 
         #######################
 
@@ -108,14 +108,26 @@ class DiffusionModule(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # compute x_t_prev.
-        if isinstance(t, int):
+        if isinstance(t, int):  # case of not a batchified input
             t = torch.tensor([t]).to(self.device)
-        eps_factor = (1 - extract(self.var_scheduler.alphas, t, xt)) / (
-            1 - extract(self.var_scheduler.alphas_cumprod, t, xt)
-        ).sqrt()
+        
+        """
+        lecture note에 오류있음
+        Denoising Diffusion Probabilistic Models 보고 구현 해야함
+        """
+        
+        noise = torch.randn_like(xt)
+        alphas = extract(self.var_scheduler.alphas, t, xt)
+        alphas_prod_t = extract(self.var_scheduler.alphas_cumprod, t, xt)
+        alphas_prod_t_prev = extract(self.var_scheduler.alphas_cumprod, t-1, xt)
+        betas = extract(self.var_scheduler.betas, t, xt)
+        
+        # eps_factor = (1 - extract(self.var_scheduler.alphas, t, xt)) / (
+        #     1 - extract(self.var_scheduler.alphas_cumprod, t, xt)
+        # ).sqrt()
         eps_theta = self.network(xt, t)
-
-        x_t_prev = xt
+        
+        x_t_prev = (1/alphas.sqrt()) * (xt - ((1-alphas)/(1-alphas_prod_t).sqrt()) * eps_theta) + (((1-alphas_prod_t_prev) * betas) / (1-alphas_prod_t)).sqrt() * noise
 
         #######################
         return x_t_prev
@@ -133,7 +145,12 @@ class DiffusionModule(nn.Module):
         ######## TODO ########
         # DO NOT change the code outside this part.
         # sample x0 based on Algorithm 2 of DDPM paper.
-        x0_pred = torch.zeros(shape).to(self.device)
+        # x0_pred = torch.zeros(shape).to(self.device)  # deterministic initial condition
+        x0_pred = torch.randn(shape).to(self.device)  # stochastic initial condition
+        
+        for _t in range(self.var_scheduler.num_train_timesteps-1, 0, -1):
+            t = torch.ones((shape[0],)).to(self.device) * _t
+            x0_pred = self.p_sample(x0_pred, t)
 
         ######################
         return x0_pred
@@ -220,8 +237,13 @@ class DiffusionModule(nn.Module):
             .to(x0.device)
             .long()
         )
-
-        loss = x0.mean()
+        
+        eps = torch.randn_like(x0)
+        xt = self.q_sample(x0, t, eps)
+        eps_theta = self.network(xt, t)
+        
+        loss = (eps_theta - eps).pow(2).mean()  # sampled batch에 대한 mean
+        # loss = x0.mean()
 
         ######################
         return loss
