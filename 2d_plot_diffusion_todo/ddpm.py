@@ -168,17 +168,30 @@ class DiffusionModule(nn.Module):
         Output:
            x_t_prev (`torch.Tensor`): one step denoised sample. (= $x_{\tau_{i-1}}$)
         """
-        ######## TODO ########
+        ######## TODO: written ########
         # NOTE: This code is used for assignment 2. You don't need to implement this part for assignment 1.
         # DO NOT change the code outside this part.
         # compute x_t_prev based on ddim reverse process.
+
+        eps_theta = self.network(xt, t)
+        noise = torch.randn_like(xt)
+        
         alpha_prod_t = extract(self.var_scheduler.alphas_cumprod, t, xt)
+        betas = extract(self.var_scheduler.betas, t, xt)
+        
         if t_prev >= 0:
             alpha_prod_t_prev = extract(self.var_scheduler.alphas_cumprod, t_prev, xt)
         else:
+            # \alpha_{t=0}의 경우를 다루기 위함임
             alpha_prod_t_prev = torch.ones_like(alpha_prod_t)
+        
+        # lecture note notation에 문제가 있다
+        # 이렇게 하면 sigma가 그냥 1이 된다.    
+        sigma = eta * torch.sqrt(
+            (1-alpha_prod_t_prev) / (alpha_prod_t_prev)
+        )
 
-        x_t_prev = xt
+        x_t_prev = (alpha_prod_t_prev / alpha_prod_t).sqrt() * (xt - (1-alpha_prod_t).sqrt() * eps_theta) + torch.sqrt(1 - alpha_prod_t_prev - torch.pow(sigma, 2)) * eps_theta + sigma * noise
 
         ######################
         return x_t_prev
@@ -206,12 +219,12 @@ class DiffusionModule(nn.Module):
             .copy()
             .astype(np.int64)
         )
-        timesteps = torch.from_numpy(timesteps)
+        timesteps = torch.from_numpy(timesteps).to(self.device)
         prev_timesteps = timesteps - step_ratio
 
-        xt = torch.zeros(shape).to(self.device)
+        xt = torch.randn(shape).to(self.device)  # stochastic initial condition
         for t, t_prev in zip(timesteps, prev_timesteps):
-            pass
+            xt = self.ddim_p_sample(xt, t, t_prev, eta)
 
         x0_pred = xt
 

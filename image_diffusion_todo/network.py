@@ -88,7 +88,10 @@ class UNet(nn.Module):
             ######## TODO ########
             # DO NOT change the code outside this part.
             # Assignment 2-1. Implement class conditioning
-            raise NotImplementedError("TODO")
+
+            assert class_label is not None, "class_label is None"
+            temb = temb + self.class_embedding(class_label)
+        
             #######################
 
         # Downsampling
