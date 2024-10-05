@@ -14,7 +14,7 @@ class DiffusionModule(nn.Module):
         self.var_scheduler = var_scheduler
 
     def get_loss(self, x0, class_label=None, noise=None):
-        ######## TODO ######## written
+        ######## TODO ######## 여기 assgnment 2에 맞게 수정 해야함
         # DO NOT change the code outside this part.
         # compute noise matching loss.
         B = x0.shape[0]
@@ -26,7 +26,7 @@ class DiffusionModule(nn.Module):
 
         # import ipdb; ipdb.set_trace()
         x_t, _noise = self.var_scheduler.add_noise(x0, timestep, noise)
-        eps_theta = self.network(x_t, timestep)
+        eps_theta = self.network(x_t, timestep, class_label=class_label)
         # network는 eps predictor
         loss = (eps_theta - noise).pow(2).mean()
         ######################
@@ -60,7 +60,9 @@ class DiffusionModule(nn.Module):
             # create a tensor of shape (2*batch_size,) where the first half is filled with zeros (i.e., null condition).
             assert class_label is not None
             assert len(class_label) == batch_size, f"len(class_label) != batch_size. {len(class_label)} != {batch_size}"
-            raise NotImplementedError("TODO")
+            class_label = class_label.to(self.device)
+            null_label = torch.zeros_like(class_label).to(self.device)
+            
             #######################
 
         traj = [x_T]
@@ -69,8 +71,13 @@ class DiffusionModule(nn.Module):
             if do_classifier_free_guidance:
                 ######## TODO ########
                 # Assignment 2. Implement the classifier-free guidance.
-                raise NotImplementedError("TODO")
+                
+                noise_pred = (1 + guidance_scale) * self.network(x_t, timestep=t.to(self.device), class_label=class_label) - guidance_scale * self.network(x_t, timestep=t.to(self.device), class_label=null_label)
+            
                 #######################
+                
+                
+                
             else:
                 noise_pred = self.network(x_t, timestep=t.to(self.device))
 

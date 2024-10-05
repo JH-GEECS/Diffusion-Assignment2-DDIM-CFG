@@ -77,15 +77,19 @@ class UNet(nn.Module):
 
         if self.use_cfg and class_label is not None:
             if self.training:
-                assert not torch.any(class_label == 0) # 0 for null.
+                assert not torch.any(class_label == 0) # 0 for null. when training class_label should not be 0
                 
-                ######## TODO ########
+                ######## TODO: written ########
                 # DO NOT change the code outside this part.
                 # Assignment 2-2. Implement random null conditioning in CFG training.
-                raise NotImplementedError("TODO")
+                if np.random.rand() < self.cfg_dropout:
+                    class_label = torch.zeros_like(class_label)
+                else:
+                    class_label = class_label
+                
                 #######################
             
-            ######## TODO ########
+            ######## TODO: written ########
             # DO NOT change the code outside this part.
             # Assignment 2-1. Implement class conditioning
 
